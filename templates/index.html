@@ -3,15 +3,17 @@
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-body { background:#1e1e2f; color:white; font-family:Arial; }
-.grid { display:grid; grid-template-columns:repeat(auto-fill,120px); gap:10px; }
-.produto { background:#2ecc71; padding:20px; border:none; border-radius:10px; }
+body { background:#1e1e2f; color:white; font-family:Arial; text-align:center; }
+.grid { display:grid; grid-template-columns:repeat(auto-fill,120px); gap:10px; justify-content:center; }
+.produto { background:#2ecc71; padding:20px; border:none; border-radius:10px; font-size:16px; }
+button { margin:5px; padding:10px; border:none; border-radius:8px; }
+input, select { padding:10px; margin:5px; border-radius:8px; }
 </style>
 </head>
 
 <body>
 
-<h2>🍺 Caixa</h2>
+<h2>🍺 Caixa do Bar</h2>
 
 <div class="grid">
 {% for p in produtos %}
@@ -19,8 +21,12 @@ body { background:#1e1e2f; color:white; font-family:Arial; }
 {% endfor %}
 </div>
 
-<input id="produto" readonly>
+<br>
+
+<input id="produto" placeholder="Produto" readonly>
 <input id="qtd" type="number" value="1">
+
+<br>
 
 <select id="garcom">
 {% for g in garcons %}
@@ -33,31 +39,35 @@ body { background:#1e1e2f; color:white; font-family:Arial; }
 <option>BAR2</option>
 </select>
 
-<button onclick="vender()">VENDER</button>
+<br>
 
-<h3>Cancelar</h3>
+<button style="background:green;color:white;" onclick="vender()">VENDER</button>
+
+<h3>Cancelar Venda</h3>
 <form action="/cancelar" method="post">
-<input name="id">
-<button>Cancelar Venda</button>
+<input name="id" placeholder="ID da venda">
+<button style="background:red;color:white;">Cancelar</button>
 </form>
 
 <script>
-function sel(p){ document.getElementById("produto").value=p }
+function sel(p){
+    document.getElementById("produto").value = p
+}
 
 function vender(){
-let f=document.createElement("form")
-f.method="POST"
-f.action="/vender"
+    let f = document.createElement("form")
+    f.method = "POST"
+    f.action = "/vender"
 
-f.innerHTML=`
-<input name="produto" value="${produto.value}">
-<input name="garcom" value="${garcom.value}">
-<input name="local" value="${local.value}">
-<input name="qtd" value="${qtd.value}">
-`
+    f.innerHTML = `
+    <input name="produto" value="${produto.value}">
+    <input name="garcom" value="${garcom.value}">
+    <input name="local" value="${local.value}">
+    <input name="qtd" value="${qtd.value}">
+    `
 
-document.body.appendChild(f)
-f.submit()
+    document.body.appendChild(f)
+    f.submit()
 }
 </script>
 

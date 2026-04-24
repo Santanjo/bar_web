@@ -1,4 +1,3 @@
- 
 from flask import Flask, render_template, request, redirect
 import psycopg2
 import os
@@ -63,15 +62,21 @@ def index():
     conn = conectar()
     c = conn.cursor()
 
-    produtos = c.execute("SELECT nome FROM produtos").fetchall()
-    garcons = c.execute("SELECT nome FROM garcons").fetchall()
-    estoque = c.execute("""
+    c.execute("SELECT nome FROM produtos")
+    produtos = c.fetchall()
+
+    c.execute("SELECT nome FROM garcons")
+    garcons = c.fetchall()
+
+    c.execute("""
         SELECT produto, local, SUM(quantidade)
         FROM estoque
         GROUP BY produto, local
-    """).fetchall()
+    """)
+    estoque = c.fetchall()
 
-    vendas = c.execute("SELECT * FROM vendas ORDER BY id DESC").fetchall()
+    c.execute("SELECT * FROM vendas ORDER BY id DESC")
+    vendas = c.fetchall()
 
     conn.close()
 
@@ -186,7 +191,8 @@ def cancelar():
     conn = conectar()
     c = conn.cursor()
 
-    venda = c.execute("SELECT * FROM vendas WHERE id = %s", (id_venda,)).fetchone()
+    c.execute("SELECT * FROM vendas WHERE id = %s", (id_venda,))
+    venda = c.fetchone()
 
     if venda:
         produto = venda[2]
