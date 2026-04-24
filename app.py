@@ -10,9 +10,6 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 def conectar():
     return psycopg2.connect(DATABASE_URL)
 
-# =========================
-# CRIAR TABELAS
-# =========================
 def init_db():
     conn = conectar()
     cur = conn.cursor()
@@ -21,23 +18,23 @@ def init_db():
     CREATE TABLE IF NOT EXISTS produtos (
         id SERIAL PRIMARY KEY,
         nome TEXT UNIQUE
-    );
+    )
     """)
 
     cur.execute("""
     CREATE TABLE IF NOT EXISTS garcons (
         id SERIAL PRIMARY KEY,
         nome TEXT UNIQUE
-    );
+    )
     """)
 
     cur.execute("""
     CREATE TABLE IF NOT EXISTS estoque (
-        id SERIAL PRIMARY KEY,
         produto TEXT,
         local TEXT,
-        quantidade INTEGER
-    );
+        quantidade INTEGER,
+        PRIMARY KEY (produto, local)
+    )
     """)
 
     cur.execute("""
@@ -48,16 +45,14 @@ def init_db():
         local TEXT,
         quantidade INTEGER,
         data TEXT
-    );
+    )
     """)
 
     conn.commit()
     cur.close()
     conn.close()
 
-# =========================
 # HOME
-# =========================
 @app.route("/")
 def index():
     conn = conectar()
@@ -77,9 +72,7 @@ def index():
 
     return render_template("index.html", produtos=produtos, garcons=garcons, vendas=vendas)
 
-# =========================
-# PRODUTOS
-# =========================
+# PRODUTO
 @app.route("/add_produto", methods=["POST"])
 def add_produto():
     nome = request.form["nome"]
@@ -90,27 +83,11 @@ def add_produto():
     cur.execute("INSERT INTO produtos (nome) VALUES (%s) ON CONFLICT DO NOTHING", (nome,))
 
     conn.commit()
-    cur.close()
     conn.close()
 
     return redirect("/")
 
-@app.route("/del_produto/<nome>")
-def del_produto(nome):
-    conn = conectar()
-    cur = conn.cursor()
-
-    cur.execute("DELETE FROM produtos WHERE nome=%s", (nome,))
-
-    conn.commit()
-    cur.close()
-    conn.close()
-
-    return redirect("/")
-
-# =========================
-# GARÇONS
-# =========================
+# GARÇOM
 @app.route("/add_garcom", methods=["POST"])
 def add_garcom():
     nome = request.form["nome"]
@@ -121,27 +98,11 @@ def add_garcom():
     cur.execute("INSERT INTO garcons (nome) VALUES (%s) ON CONFLICT DO NOTHING", (nome,))
 
     conn.commit()
-    cur.close()
     conn.close()
 
     return redirect("/")
 
-@app.route("/del_garcom/<nome>")
-def del_garcom(nome):
-    conn = conectar()
-    cur = conn.cursor()
-
-    cur.execute("DELETE FROM garcons WHERE nome=%s", (nome,))
-
-    conn.commit()
-    cur.close()
-    conn.close()
-
-    return redirect("/")
-
-# =========================
 # ESTOQUE
-# =========================
 def get_estoque(produto, local):
     conn = conectar()
     cur = conn.cursor()
@@ -149,9 +110,7 @@ def get_estoque(produto, local):
     cur.execute("SELECT quantidade FROM estoque WHERE produto=%s AND local=%s", (produto, local))
     res = cur.fetchone()
 
-    cur.close()
     conn.close()
-
     return res[0] if res else 0
 
 def atualizar_estoque(produto, local, qtd):
@@ -161,21 +120,14 @@ def atualizar_estoque(produto, local, qtd):
     cur.execute("""
     INSERT INTO estoque (produto, local, quantidade)
     VALUES (%s, %s, %s)
-    ON CONFLICT DO NOTHING
-    """)
-
-    cur.execute("""
-    UPDATE estoque SET quantidade = quantidade + %s
-    WHERE produto=%s AND local=%s
-    """, (qtd, produto, local))
+    ON CONFLICT (produto, local)
+    DO UPDATE SET quantidade = estoque.quantidade + EXCLUDED.quantidade
+    """, (produto, local, qtd))
 
     conn.commit()
-    cur.close()
     conn.close()
 
-# =========================
 # VENDA
-# =========================
 @app.route("/vender", methods=["POST"])
 def vender():
     produto = request.form["produto"]
@@ -184,7 +136,7 @@ def vender():
     qtd = int(request.form["qtd"])
 
     if get_estoque(produto, local) < qtd:
-        return "Sem estoque!"
+        return "Sem estoque"
 
     atualizar_estoque(produto, local, -qtd)
 
@@ -197,14 +149,11 @@ def vender():
     """, (garcom, produto, local, qtd, datetime.now().strftime("%d/%m %H:%M")))
 
     conn.commit()
-    cur.close()
     conn.close()
 
     return redirect("/")
 
-# =========================
-# CANCELAR VENDA
-# =========================
+# CANCELAR
 @app.route("/cancelar/<int:id>")
 def cancelar(id):
     conn = conectar()
@@ -218,14 +167,11 @@ def cancelar(id):
         cur.execute("DELETE FROM vendas WHERE id=%s", (id,))
 
     conn.commit()
-    cur.close()
     conn.close()
 
     return redirect("/")
 
-# =========================
 # REPOSIÇÃO
-# =========================
 @app.route("/reposicao", methods=["POST"])
 def reposicao():
     produto = request.form["produto"]
@@ -240,9 +186,6 @@ def reposicao():
 
     return redirect("/")
 
-# =========================
-# START
-# =========================
 if __name__ == "__main__":
     init_db()
-    app.run(host="0.0.0.0", port=5000)
+    app.run()
