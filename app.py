@@ -11,36 +11,36 @@ def conectar():
     return psycopg2.connect(DATABASE_URL)
 
 # =========================
-# INIT BANCO
+# CRIAR TABELAS
 # =========================
 def init_db():
     conn = conectar()
-    c = conn.cursor()
+    cur = conn.cursor()
 
-    c.execute("""
+    cur.execute("""
     CREATE TABLE IF NOT EXISTS produtos (
         id SERIAL PRIMARY KEY,
         nome TEXT UNIQUE
-    )
+    );
     """)
 
-    c.execute("""
+    cur.execute("""
     CREATE TABLE IF NOT EXISTS garcons (
         id SERIAL PRIMARY KEY,
         nome TEXT UNIQUE
-    )
+    );
     """)
 
-    c.execute("""
+    cur.execute("""
     CREATE TABLE IF NOT EXISTS estoque (
         id SERIAL PRIMARY KEY,
         produto TEXT,
         local TEXT,
         quantidade INTEGER
-    )
+    );
     """)
 
-    c.execute("""
+    cur.execute("""
     CREATE TABLE IF NOT EXISTS vendas (
         id SERIAL PRIMARY KEY,
         garcom TEXT,
@@ -48,10 +48,11 @@ def init_db():
         local TEXT,
         quantidade INTEGER,
         data TEXT
-    )
+    );
     """)
 
     conn.commit()
+    cur.close()
     conn.close()
 
 # =========================
@@ -60,95 +61,117 @@ def init_db():
 @app.route("/")
 def index():
     conn = conectar()
-    c = conn.cursor()
+    cur = conn.cursor()
 
-    c.execute("SELECT nome FROM produtos")
-    produtos = c.fetchall()
+    cur.execute("SELECT nome FROM produtos")
+    produtos = [p[0] for p in cur.fetchall()]
 
-    c.execute("SELECT nome FROM garcons")
-    garcons = c.fetchall()
+    cur.execute("SELECT nome FROM garcons")
+    garcons = [g[0] for g in cur.fetchall()]
 
-    c.execute("""
-        SELECT produto, local, SUM(quantidade)
-        FROM estoque
-        GROUP BY produto, local
-    """)
-    estoque = c.fetchall()
+    cur.execute("SELECT * FROM vendas ORDER BY id DESC")
+    vendas = cur.fetchall()
 
-    c.execute("SELECT * FROM vendas ORDER BY id DESC")
-    vendas = c.fetchall()
-
+    cur.close()
     conn.close()
 
-    return render_template("index.html",
-                           produtos=produtos,
-                           garcons=garcons,
-                           estoque=estoque,
-                           vendas=vendas)
+    return render_template("index.html", produtos=produtos, garcons=garcons, vendas=vendas)
 
 # =========================
-# PRODUTO
+# PRODUTOS
 # =========================
 @app.route("/add_produto", methods=["POST"])
 def add_produto():
     nome = request.form["nome"]
 
     conn = conectar()
-    c = conn.cursor()
+    cur = conn.cursor()
 
-    try:
-        c.execute("INSERT INTO produtos (nome) VALUES (%s)", (nome,))
-    except:
-        pass
+    cur.execute("INSERT INTO produtos (nome) VALUES (%s) ON CONFLICT DO NOTHING", (nome,))
 
     conn.commit()
+    cur.close()
     conn.close()
+
     return redirect("/")
 
-@app.route("/del_produto", methods=["POST"])
-def del_produto():
-    nome = request.form["nome"]
-
+@app.route("/del_produto/<nome>")
+def del_produto(nome):
     conn = conectar()
-    c = conn.cursor()
+    cur = conn.cursor()
 
-    c.execute("DELETE FROM produtos WHERE nome = %s", (nome,))
+    cur.execute("DELETE FROM produtos WHERE nome=%s", (nome,))
 
     conn.commit()
+    cur.close()
     conn.close()
+
     return redirect("/")
 
 # =========================
-# GARÇOM
+# GARÇONS
 # =========================
 @app.route("/add_garcom", methods=["POST"])
 def add_garcom():
     nome = request.form["nome"]
 
     conn = conectar()
-    c = conn.cursor()
+    cur = conn.cursor()
 
-    try:
-        c.execute("INSERT INTO garcons (nome) VALUES (%s)", (nome,))
-    except:
-        pass
+    cur.execute("INSERT INTO garcons (nome) VALUES (%s) ON CONFLICT DO NOTHING", (nome,))
 
     conn.commit()
+    cur.close()
     conn.close()
+
     return redirect("/")
 
-@app.route("/del_garcom", methods=["POST"])
-def del_garcom():
-    nome = request.form["nome"]
-
+@app.route("/del_garcom/<nome>")
+def del_garcom(nome):
     conn = conectar()
-    c = conn.cursor()
+    cur = conn.cursor()
 
-    c.execute("DELETE FROM garcons WHERE nome = %s", (nome,))
+    cur.execute("DELETE FROM garcons WHERE nome=%s", (nome,))
 
     conn.commit()
+    cur.close()
     conn.close()
+
     return redirect("/")
+
+# =========================
+# ESTOQUE
+# =========================
+def get_estoque(produto, local):
+    conn = conectar()
+    cur = conn.cursor()
+
+    cur.execute("SELECT quantidade FROM estoque WHERE produto=%s AND local=%s", (produto, local))
+    res = cur.fetchone()
+
+    cur.close()
+    conn.close()
+
+    return res[0] if res else 0
+
+def atualizar_estoque(produto, local, qtd):
+    conn = conectar()
+    cur = conn.cursor()
+
+    cur.execute("""
+    INSERT INTO estoque (produto, local, quantidade)
+    VALUES (%s, %s, %s)
+    ON CONFLICT DO NOTHING
+    """)
+
+    cur.execute("""
+    UPDATE estoque SET quantidade = quantidade + %s
+    WHERE produto=%s AND local=%s
+    """, (qtd, produto, local))
+
+    conn.commit()
+    cur.close()
+    conn.close()
 
 # =========================
 # VENDA
@@ -160,23 +183,21 @@ def vender():
     local = request.form["local"]
     qtd = int(request.form["qtd"])
 
+    if get_estoque(produto, local) < qtd:
+        return "Sem estoque!"
+
+    atualizar_estoque(produto, local, -qtd)
+
     conn = conectar()
-    c = conn.cursor()
+    cur = conn.cursor()
 
-    # baixa estoque
-    c.execute("""
-        INSERT INTO estoque (produto, local, quantidade)
-        VALUES (%s, %s, %s)
-    """, (produto, local, -qtd))
-
-    # registra venda
-    c.execute("""
-        INSERT INTO vendas (garcom, produto, local, quantidade, data)
-        VALUES (%s, %s, %s, %s, %s)
-    """, (garcom, produto, local, qtd,
-          datetime.now().strftime("%d/%m %H:%M")))
+    cur.execute("""
+    INSERT INTO vendas (garcom, produto, local, quantidade, data)
+    VALUES (%s, %s, %s, %s, %s)
+    """, (garcom, produto, local, qtd, datetime.now().strftime("%d/%m %H:%M")))
 
     conn.commit()
+    cur.close()
     conn.close()
 
     return redirect("/")
@@ -184,30 +205,20 @@ def vender():
 # =========================
 # CANCELAR VENDA
 # =========================
-@app.route("/cancelar", methods=["POST"])
-def cancelar():
-    id_venda = request.form["id"]
-
+@app.route("/cancelar/<int:id>")
+def cancelar(id):
     conn = conectar()
-    c = conn.cursor()
+    cur = conn.cursor()
 
-    c.execute("SELECT * FROM vendas WHERE id = %s", (id_venda,))
-    venda = c.fetchone()
+    cur.execute("SELECT produto, local, quantidade FROM vendas WHERE id=%s", (id,))
+    venda = cur.fetchone()
 
     if venda:
-        produto = venda[2]
-        local = venda[3]
-        qtd = venda[4]
-
-        # devolve estoque
-        c.execute("""
-            INSERT INTO estoque (produto, local, quantidade)
-            VALUES (%s, %s, %s)
-        """, (produto, local, qtd))
-
-        c.execute("DELETE FROM vendas WHERE id = %s", (id_venda,))
+        atualizar_estoque(venda[0], venda[1], venda[2])
+        cur.execute("DELETE FROM vendas WHERE id=%s", (id,))
 
     conn.commit()
+    cur.close()
     conn.close()
 
     return redirect("/")
@@ -218,30 +229,20 @@ def cancelar():
 @app.route("/reposicao", methods=["POST"])
 def reposicao():
     produto = request.form["produto"]
-    local = request.form["local"]
+    destino = request.form["local"]
     qtd = int(request.form["qtd"])
 
-    conn = conectar()
-    c = conn.cursor()
+    if get_estoque(produto, "DEPOSITO") < qtd:
+        return "Sem estoque no depósito"
 
-    # tira do depósito
-    c.execute("""
-        INSERT INTO estoque (produto, local, quantidade)
-        VALUES (%s, 'DEPOSITO', %s)
-    """, (produto, -qtd))
-
-    # adiciona no bar
-    c.execute("""
-        INSERT INTO estoque (produto, local, quantidade)
-        VALUES (%s, %s, %s)
-    """, (produto, local, qtd))
-
-    conn.commit()
-    conn.close()
+    atualizar_estoque(produto, "DEPOSITO", -qtd)
+    atualizar_estoque(produto, destino, qtd)
 
     return redirect("/")
 
 # =========================
+# START
+# =========================
 if __name__ == "__main__":
     init_db()
-    app.run()
+    app.run(host="0.0.0.0", port=5000)
