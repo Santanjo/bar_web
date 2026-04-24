@@ -1,11 +1,15 @@
+ 
 from flask import Flask, render_template, request, redirect
-import sqlite3
+import psycopg2
+import os
 from datetime import datetime
 
 app = Flask(__name__)
 
+DATABASE_URL = os.getenv("DATABASE_URL")
+
 def conectar():
-    return sqlite3.connect("banco.db")
+    return psycopg2.connect(DATABASE_URL)
 
 # =========================
 # INIT BANCO
@@ -16,21 +20,21 @@ def init_db():
 
     c.execute("""
     CREATE TABLE IF NOT EXISTS produtos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         nome TEXT UNIQUE
     )
     """)
 
     c.execute("""
     CREATE TABLE IF NOT EXISTS garcons (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         nome TEXT UNIQUE
     )
     """)
 
     c.execute("""
     CREATE TABLE IF NOT EXISTS estoque (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         produto TEXT,
         local TEXT,
         quantidade INTEGER
@@ -39,7 +43,7 @@ def init_db():
 
     c.execute("""
     CREATE TABLE IF NOT EXISTS vendas (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         garcom TEXT,
         produto TEXT,
         local TEXT,
@@ -61,7 +65,12 @@ def index():
 
     produtos = c.execute("SELECT nome FROM produtos").fetchall()
     garcons = c.execute("SELECT nome FROM garcons").fetchall()
-    estoque = c.execute("SELECT produto, local, SUM(quantidade) FROM estoque GROUP BY produto, local").fetchall()
+    estoque = c.execute("""
+        SELECT produto, local, SUM(quantidade)
+        FROM estoque
+        GROUP BY produto, local
+    """).fetchall()
+
     vendas = c.execute("SELECT * FROM vendas ORDER BY id DESC").fetchall()
 
     conn.close()
@@ -81,13 +90,27 @@ def add_produto():
 
     conn = conectar()
     c = conn.cursor()
+
     try:
-        c.execute("INSERT INTO produtos (nome) VALUES (?)", (nome,))
+        c.execute("INSERT INTO produtos (nome) VALUES (%s)", (nome,))
     except:
         pass
+
     conn.commit()
     conn.close()
+    return redirect("/")
 
+@app.route("/del_produto", methods=["POST"])
+def del_produto():
+    nome = request.form["nome"]
+
+    conn = conectar()
+    c = conn.cursor()
+
+    c.execute("DELETE FROM produtos WHERE nome = %s", (nome,))
+
+    conn.commit()
+    conn.close()
     return redirect("/")
 
 # =========================
@@ -99,13 +122,27 @@ def add_garcom():
 
     conn = conectar()
     c = conn.cursor()
+
     try:
-        c.execute("INSERT INTO garcons (nome) VALUES (?)", (nome,))
+        c.execute("INSERT INTO garcons (nome) VALUES (%s)", (nome,))
     except:
         pass
+
     conn.commit()
     conn.close()
+    return redirect("/")
 
+@app.route("/del_garcom", methods=["POST"])
+def del_garcom():
+    nome = request.form["nome"]
+
+    conn = conectar()
+    c = conn.cursor()
+
+    c.execute("DELETE FROM garcons WHERE nome = %s", (nome,))
+
+    conn.commit()
+    conn.close()
     return redirect("/")
 
 # =========================
@@ -122,12 +159,47 @@ def vender():
     c = conn.cursor()
 
     # baixa estoque
-    c.execute("INSERT INTO estoque (produto, local, quantidade) VALUES (?, ?, ?)",
-              (produto, local, -qtd))
+    c.execute("""
+        INSERT INTO estoque (produto, local, quantidade)
+        VALUES (%s, %s, %s)
+    """, (produto, local, -qtd))
 
     # registra venda
-    c.execute("INSERT INTO vendas (garcom, produto, local, quantidade, data) VALUES (?, ?, ?, ?, ?)",
-              (garcom, produto, local, qtd, datetime.now().strftime("%d/%m %H:%M")))
+    c.execute("""
+        INSERT INTO vendas (garcom, produto, local, quantidade, data)
+        VALUES (%s, %s, %s, %s, %s)
+    """, (garcom, produto, local, qtd,
+          datetime.now().strftime("%d/%m %H:%M")))
+
+    conn.commit()
+    conn.close()
+
+    return redirect("/")
+
+# =========================
+# CANCELAR VENDA
+# =========================
+@app.route("/cancelar", methods=["POST"])
+def cancelar():
+    id_venda = request.form["id"]
+
+    conn = conectar()
+    c = conn.cursor()
+
+    venda = c.execute("SELECT * FROM vendas WHERE id = %s", (id_venda,)).fetchone()
+
+    if venda:
+        produto = venda[2]
+        local = venda[3]
+        qtd = venda[4]
+
+        # devolve estoque
+        c.execute("""
+            INSERT INTO estoque (produto, local, quantidade)
+            VALUES (%s, %s, %s)
+        """, (produto, local, qtd))
+
+        c.execute("DELETE FROM vendas WHERE id = %s", (id_venda,))
 
     conn.commit()
     conn.close()
@@ -146,11 +218,17 @@ def reposicao():
     conn = conectar()
     c = conn.cursor()
 
-    # tira do deposito
-    c.execute("INSERT INTO estoque VALUES (NULL, ?, 'DEPOSITO', ?)", (produto, -qtd))
+    # tira do depósito
+    c.execute("""
+        INSERT INTO estoque (produto, local, quantidade)
+        VALUES (%s, 'DEPOSITO', %s)
+    """, (produto, -qtd))
 
     # adiciona no bar
-    c.execute("INSERT INTO estoque VALUES (NULL, ?, ?, ?)", (produto, local, qtd))
+    c.execute("""
+        INSERT INTO estoque (produto, local, quantidade)
+        VALUES (%s, %s, %s)
+    """, (produto, local, qtd))
 
     conn.commit()
     conn.close()
@@ -160,4 +238,4 @@ def reposicao():
 # =========================
 if __name__ == "__main__":
     init_db()
-    app.run(host="0.0.0.0", port=5000)
+    app.run()

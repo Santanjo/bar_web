@@ -1,189 +1,63 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Caixa de Bar</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-
-    <style>
-        body {
-            font-family: Arial;
-            background: #1e1e2f;
-            color: white;
-            margin: 0;
-            padding: 10px;
-        }
-
-        h2 {
-            text-align: center;
-        }
-
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-            gap: 10px;
-        }
-
-        .produto {
-            background: #2ecc71;
-            border: none;
-            padding: 20px;
-            font-size: 18px;
-            border-radius: 10px;
-            cursor: pointer;
-        }
-
-        .produto:active {
-            background: #27ae60;
-        }
-
-        .painel {
-            margin-top: 15px;
-            padding: 10px;
-            background: #2c2c3c;
-            border-radius: 10px;
-        }
-
-        select, input {
-            width: 100%;
-            padding: 10px;
-            margin-top: 5px;
-            border-radius: 8px;
-            border: none;
-        }
-
-        button {
-            width: 100%;
-            padding: 15px;
-            margin-top: 10px;
-            font-size: 16px;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-        }
-
-        .btn-vender { background: #3498db; color: white; }
-        .btn-repor { background: orange; }
-        .btn-add { background: purple; color: white; }
-
-        .lista {
-            max-height: 200px;
-            overflow-y: auto;
-        }
-
-        .item {
-            padding: 5px;
-            border-bottom: 1px solid #444;
-        }
-    </style>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body { background:#1e1e2f; color:white; font-family:Arial; }
+.grid { display:grid; grid-template-columns:repeat(auto-fill,120px); gap:10px; }
+.produto { background:#2ecc71; padding:20px; border:none; border-radius:10px; }
+</style>
 </head>
 
 <body>
 
-<h2>🍺 Caixa de Bar</h2>
+<h2>🍺 Caixa</h2>
 
-<!-- PRODUTOS -->
 <div class="grid">
-    {% for p in produtos %}
-    <button class="produto" onclick="selecionarProduto('{{p[0]}}')">
-        {{p[0]}}
-    </button>
-    {% endfor %}
+{% for p in produtos %}
+<button class="produto" onclick="sel('{{p[0]}}')">{{p[0]}}</button>
+{% endfor %}
 </div>
 
-<!-- PAINEL -->
-<div class="painel">
+<input id="produto" readonly>
+<input id="qtd" type="number" value="1">
 
-    <h3>Venda</h3>
+<select id="garcom">
+{% for g in garcons %}
+<option>{{g[0]}}</option>
+{% endfor %}
+</select>
 
-    Produto:
-    <input id="produto" readonly>
+<select id="local">
+<option>BAR1</option>
+<option>BAR2</option>
+</select>
 
-    Garçom:
-    <select id="garcom">
-        {% for g in garcons %}
-        <option>{{g[0]}}</option>
-        {% endfor %}
-    </select>
+<button onclick="vender()">VENDER</button>
 
-    Local:
-    <select id="local">
-        <option>BAR1</option>
-        <option>BAR2</option>
-    </select>
-
-    Quantidade:
-    <input id="qtd" type="number" value="1">
-
-    <button class="btn-vender" onclick="vender()">💰 VENDER</button>
-
-</div>
-
-<!-- ADICIONAR -->
-<div class="painel">
-    <h3>Adicionar Produto</h3>
-    <form action="/add_produto" method="post">
-        <input name="nome">
-        <button class="btn-add">Adicionar</button>
-    </form>
-
-    <h3>Adicionar Garçom</h3>
-    <form action="/add_garcom" method="post">
-        <input name="nome">
-        <button class="btn-add">Adicionar</button>
-    </form>
-</div>
-
-<!-- ESTOQUE -->
-<div class="painel">
-    <h3>Estoque</h3>
-    <div class="lista">
-        {% for e in estoque %}
-        <div class="item">{{e[0]}} - {{e[1]}}: {{e[2]}}</div>
-        {% endfor %}
-    </div>
-</div>
-
-<!-- VENDAS -->
-<div class="painel">
-    <h3>Vendas</h3>
-    <div class="lista">
-        {% for v in vendas %}
-        <div class="item">
-            {{v[1]}} vendeu {{v[2]}} ({{v[4]}}) - {{v[5]}}
-        </div>
-        {% endfor %}
-    </div>
-</div>
+<h3>Cancelar</h3>
+<form action="/cancelar" method="post">
+<input name="id">
+<button>Cancelar Venda</button>
+</form>
 
 <script>
-function selecionarProduto(nome){
-    document.getElementById("produto").value = nome;
-}
+function sel(p){ document.getElementById("produto").value=p }
 
 function vender(){
-    let produto = document.getElementById("produto").value;
-    let garcom = document.getElementById("garcom").value;
-    let local = document.getElementById("local").value;
-    let qtd = document.getElementById("qtd").value;
+let f=document.createElement("form")
+f.method="POST"
+f.action="/vender"
 
-    if(produto === ""){
-        alert("Selecione um produto");
-        return;
-    }
+f.innerHTML=`
+<input name="produto" value="${produto.value}">
+<input name="garcom" value="${garcom.value}">
+<input name="local" value="${local.value}">
+<input name="qtd" value="${qtd.value}">
+`
 
-    let form = document.createElement("form");
-    form.method = "POST";
-    form.action = "/vender";
-
-    form.innerHTML = `
-        <input name="produto" value="${produto}">
-        <input name="garcom" value="${garcom}">
-        <input name="local" value="${local}">
-        <input name="qtd" value="${qtd}">
-    `;
-
-    document.body.appendChild(form);
-    form.submit();
+document.body.appendChild(f)
+f.submit()
 }
 </script>
 
