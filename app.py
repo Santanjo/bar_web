@@ -5,11 +5,11 @@ from datetime import datetime
 
 app = Flask(__name__)
 
-# =========================
-# BANCO
-# =========================
-DATABASE_URL = os.environ.get("DATABASE_URL")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
+# =========================
+# CONEXÃO
+# =========================
 def conectar():
     return psycopg2.connect(DATABASE_URL, sslmode='require')
 
@@ -62,29 +62,24 @@ def init_db():
 # =========================
 @app.route("/")
 def index():
-    return "SISTEMA ONLINE 🚀"
-    try:
-        conn = conectar()
-        cur = conn.cursor()
+    conn = conectar()
+    cur = conn.cursor()
 
-        cur.execute("SELECT nome FROM produtos ORDER BY nome")
-        produtos = [p[0] for p in cur.fetchall()]
+    cur.execute("SELECT nome FROM produtos ORDER BY nome")
+    produtos = [p[0] for p in cur.fetchall()]
 
-        cur.execute("SELECT nome FROM garcons ORDER BY nome")
-        garcons = [g[0] for g in cur.fetchall()]
+    cur.execute("SELECT nome FROM garcons ORDER BY nome")
+    garcons = [g[0] for g in cur.fetchall()]
 
-        cur.execute("SELECT * FROM vendas ORDER BY id DESC")
-        vendas = cur.fetchall()
+    cur.execute("SELECT * FROM vendas ORDER BY id DESC")
+    vendas = cur.fetchall()
 
-        conn.close()
+    conn.close()
 
-        return render_template("index.html", produtos=produtos, garcons=garcons, vendas=vendas)
-
-    except Exception as e:
-        return f"ERRO: {str(e)}"
+    return render_template("index.html", produtos=produtos, garcons=garcons, vendas=vendas)
 
 # =========================
-# PRODUTOS
+# PRODUTO
 # =========================
 @app.route("/add_produto", methods=["POST"])
 def add_produto():
@@ -92,23 +87,15 @@ def add_produto():
 
     conn = conectar()
     cur = conn.cursor()
+
     cur.execute("INSERT INTO produtos (nome) VALUES (%s) ON CONFLICT DO NOTHING", (nome,))
     conn.commit()
     conn.close()
 
     return redirect("/")
 
-@app.route("/del_produto/<nome>")
-def del_produto(nome):
-    conn = conectar()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM produtos WHERE nome=%s", (nome,))
-    conn.commit()
-    conn.close()
-    return redirect("/")
-
 # =========================
-# GARÇONS
+# GARÇOM
 # =========================
 @app.route("/add_garcom", methods=["POST"])
 def add_garcom():
@@ -116,19 +103,11 @@ def add_garcom():
 
     conn = conectar()
     cur = conn.cursor()
+
     cur.execute("INSERT INTO garcons (nome) VALUES (%s) ON CONFLICT DO NOTHING", (nome,))
     conn.commit()
     conn.close()
 
-    return redirect("/")
-
-@app.route("/del_garcom/<nome>")
-def del_garcom(nome):
-    conn = conectar()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM garcons WHERE nome=%s", (nome,))
-    conn.commit()
-    conn.close()
     return redirect("/")
 
 # =========================
@@ -137,8 +116,10 @@ def del_garcom(nome):
 def get_estoque(produto, local):
     conn = conectar()
     cur = conn.cursor()
+
     cur.execute("SELECT quantidade FROM estoque WHERE produto=%s AND local=%s", (produto, local))
     res = cur.fetchone()
+
     conn.close()
     return res[0] if res else 0
 
@@ -185,44 +166,7 @@ def vender():
     return redirect("/")
 
 # =========================
-# CANCELAR VENDA
-# =========================
-@app.route("/cancelar/<int:id>")
-def cancelar(id):
-    conn = conectar()
-    cur = conn.cursor()
-
-    cur.execute("SELECT produto, local, quantidade FROM vendas WHERE id=%s", (id,))
-    venda = cur.fetchone()
-
-    if venda:
-        atualizar_estoque(venda[0], venda[1], venda[2])
-        cur.execute("DELETE FROM vendas WHERE id=%s", (id,))
-
-    conn.commit()
-    conn.close()
-
-    return redirect("/")
-
-# =========================
-# REPOSIÇÃO
-# =========================
-@app.route("/reposicao", methods=["POST"])
-def reposicao():
-    produto = request.form["produto"]
-    destino = request.form["local"]
-    qtd = int(request.form["qtd"])
-
-    if get_estoque(produto, "DEPOSITO") < qtd:
-        return "Sem estoque no depósito"
-
-    atualizar_estoque(produto, "DEPOSITO", -qtd)
-    atualizar_estoque(produto, destino, qtd)
-
-    return redirect("/")
-
-# =========================
-# INICIAR
+# START
 # =========================
 init_db()
 

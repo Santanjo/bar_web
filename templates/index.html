@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Caixa de Bar</title>
+    <style>
+        body {
+            font-family: Arial;
+            background: #111;
+            color: white;
+            text-align: center;
+        }
+
+        h1 {
+            margin-top: 20px;
+        }
+
+        .btn {
+            width: 90%;
+            padding: 20px;
+            margin: 10px;
+            font-size: 20px;
+            border: none;
+            border-radius: 10px;
+        }
+
+        .verde { background: green; }
+        .azul { background: blue; }
+        .vermelho { background: red; }
+
+        input, select {
+            width: 90%;
+            padding: 10px;
+            margin: 5px;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>🍺 CAIXA DE BAR</h1>
+
+<form action="/add_produto" method="post">
+    <input name="nome" placeholder="Novo Produto">
+    <button class="btn azul">Adicionar Produto</button>
+</form>
+
+<form action="/add_garcom" method="post">
+    <input name="nome" placeholder="Novo Garçom">
+    <button class="btn azul">Adicionar Garçom</button>
+</form>
+
+<form action="/vender" method="post">
+    <select name="produto">
+        {% for p in produtos %}
+        <option>{{p}}</option>
+        {% endfor %}
+    </select>
+
+    <select name="garcom">
+        {% for g in garcons %}
+        <option>{{g}}</option>
+        {% endfor %}
+    </select>
+
+    <select name="local">
+        <option>BAR1</option>
+        <option>BAR2</option>
+    </select>
+
+    <input name="qtd" placeholder="Quantidade">
+
+    <button class="btn verde">VENDER</button>
+</form>
+
+<h2>📊 VENDAS</h2>
+
+{% for v in vendas %}
+<p>{{v}}</p>
+{% endfor %}
+
+</body>
+</html>
